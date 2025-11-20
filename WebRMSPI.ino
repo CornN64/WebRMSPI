@@ -30,6 +30,9 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include "config.h"
+#ifdef OTAenable
+#include <ArduinoOTA.h>
+#endif
 
 //Registers
 #define RM_POLL       0x00
@@ -67,7 +70,27 @@ int Z_vals[ARRAY_LENGTH];
 AsyncWebServer server(80);                            // the server uses port 80 (standard port for websites
 WebSocketsServer webSocket = WebSocketsServer(81);    // the websocket uses port 81 (standard port for websockets
 
-void IRAM_ATTR QQSort(int32_t *arr, int n) {
+float StDev(int32_t *data, int32_t n) {
+    float mean = 0.f;
+    for (int i = 0; i < n; i++) mean += data[i];
+    mean /= n;
+
+    float variance = 0.f;
+    for (int i = 0; i < n; i++) variance += (data[i] - mean) * (data[i] - mean);
+    //variance /= n;  // for population stddev
+    variance /= (n - 1); // for sample stddev (unbiased)
+
+    return sqrtf(variance);
+}
+
+//Median-Mean filter
+float IRAM_ATTR QQSort(int32_t *arr, int32_t n) {
+#if SR%2
+    const int32_t avgs[] = {SR/2-2, SR/2-1, SR/2+0, SR/2+1, SR/2+2};
+#else
+    const int32_t avgs[] = {SR/2-2, SR/2-1, SR/2+0, SR/2+1};
+#endif
+    const int avgscount = ((sizeof avgs) / (sizeof *avgs));
     int32_t stack[64];  // manual stack for recursion-free quicksort
     int32_t top = -1;
     stack[++top] = 0;
@@ -101,6 +124,11 @@ void IRAM_ATTR QQSort(int32_t *arr, int n) {
             stack[++top] = high;
         }
     }
+    float accu = 0.f;
+    for(int i=0; i < avgscount; i++) {
+      accu += (float) arr[i];
+    }
+    return (RMgain * accu / (float)avgscount);    
 }
 
 uint8_t IRAM_ATTR readReg(uint8_t addr){
@@ -112,7 +140,6 @@ uint8_t IRAM_ATTR readReg(uint8_t addr){
   return data;
 }
 
-//addr is the 7 bit (No r/w bit) value of the internal register's address, data is 8 bit data being written
 void IRAM_ATTR writeReg(uint8_t addr, uint8_t data){
   digitalWrite(CS_GPIO, LOW); 
   SPI.transfer(addr & 0x7F);
@@ -224,11 +251,17 @@ void Task( void * parameter ) {
   webSocket.begin();                                  // start websocket
   webSocket.onEvent(webSocketEvent);                  // define a callback function -> what does the ESP32 need to do when an event from the websocket is received? -> run function "webSocketEvent()"
   server.begin();                                     // start server -> best practise is to start the server after the websocket
-  
   printf("Webserver on Core: %d\n", xPortGetCoreID());
 
+#ifdef OTAenable
+  ArduinoOTA.begin();  // Starts OTA
+#endif
+  
   for (;;) {
     webSocket.loop();                                 // call webSockets
+#ifdef OTAenable
+    ArduinoOTA.handle();  // Handles a code update request
+#endif    
     if (NEWDATA) {
       NEWDATA = false;
       sendJsonArray("graph_X", X_vals);
@@ -254,7 +287,7 @@ void setup() {
   else Serial.print("RM3100 detected REVID:0x");
   Serial.println(ID, HEX);
 
-  xTaskCreatePinnedToCore(Task, "core0", 2*16384, NULL, tskIDLE_PRIORITY, NULL, 0); //Start task on new
+  xTaskCreatePinnedToCore(Task, "core0", 2*16384, NULL, tskIDLE_PRIORITY, NULL, 0); //Start task
   //xTaskCreate(Task, "anycore", 2*16384, NULL, tskIDLE_PRIORITY, NULL); //Start task
 
   // Set up cycle counts
@@ -284,7 +317,7 @@ void IRAM_ATTR loop() {
   static float x=0.f, y=0.f, z=0.f; // average in uT
   static int32_t sidx = SR-1, avgcnt = AVG;
   static bool first = true;
-
+  
   // poll the RM3100 for a single measurement
   if (singleMode){
     writeReg(RM_POLL, 0x70); //set up single measurement mode
@@ -308,12 +341,9 @@ void IRAM_ATTR loop() {
 
   if (sidx-- <= 0) {
     sidx = SR-1;
-    QQSort(xv, SR); //Median filter
-    x = x + RMgain * (float)xv[SR/2];
-    QQSort(yv, SR);
-    y = y + RMgain * (float)yv[SR/2];
-    QQSort(zv, SR);
-    z = z + RMgain * (float)zv[SR/2];
+    x = x + QQSort(xv, SR);
+    y = y + QQSort(yv, SR);
+    z = z + QQSort(zv, SR);
     if (--avgcnt <= 0) {
       avgcnt = AVG;
       float Btot = sqrtf(x*x+y*y+z*z);

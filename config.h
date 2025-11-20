@@ -8,6 +8,7 @@ const IPAddress gateway(192,168,55,1);
 const IPAddress subnet(255,255,255,0);
 
 #define USEAP 0	//Use (0)DHCP or (1)Access Point
+#define OTAenable //uncomment if you want OTA updates enabled
  
 //Pin definitions using the VSPI bus (also connect GND & VCC(3.3V) to RM3100)
 #define SPISPD 1000000  //SPI clock speed

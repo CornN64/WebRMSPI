@@ -1,8 +1,7 @@
 # **Space weather monitoring with RM3100 Magnetometer + WEMOS D1 MINI ESP32 running as a Webserver**
 ![Strong magnetic disturbance due to aurora](img/Aurora_20251112.png)
-![RM3100 and ESP32](img/Combo.jpg)
-
 The earth magnetic field wobbles as the suns particle storms occasionally hits and gets trapped in the magnetic bubble surrounding the earth. These shifts in magnetic fields can be seen with sensitive sensors placed in not too disturbed places and can tell if aurora borealis is about to show up. Naturally these effects will be stronger the closer you get to the poles as well.
+![RM3100 and ESP32](img/Combo.jpg)
 Designed to run on the ESP32 within the Arduino IDE framework.
 ```
     -----------
@@ -36,8 +35,8 @@ https://github.com/me-no-dev/arduino-esp32fs-plugin/releases/
 https://randomnerdtutorials.com/install-esp32-filesystem-uploader-arduino-ide/
 
 **Options**
-The config.h file contains some options to configure things like WiFi SSID and PW. ESP 32 stores 1024 samples for each x, y & z vector sent periodically to the webserver ~60s. The RM3100 sample rate is set to ~36sps and averaging for 60 seconds keeping a data log for about 17h.
-Once all is compiled and SPIFFS uploaded find a quite place away from other electrical or metallic object, Power up the ESP32 and connect to the webserver http://IP_address to view the magnetometer plots. You can choose between AC and DC mode. For space weather AC mode works the best.
+The config.h file contains some options to configure things like WiFi SSID and PW. ESP32 stores 1024 samples for each x, y & z vector sent periodically to the webserver ~60s. The RM3100 sample rate is set to ~36sps and averaging each output sample for 60 seconds results for a data log of about 17h.
+Once all is compiled and SPIFFS uploaded find a quite place away from other electrical or metallic object, power up the ESP32 and connect to the webserver http://IP_address to view the magnetometer plots. You can choose between AC and DC mode. For space weather AC mode works the best. The top legend is clickable to enable/disable plotting the data sets.
 
 Enjoy,
 Walter

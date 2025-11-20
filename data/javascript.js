@@ -108,8 +108,6 @@ function updatechart() {
 	for(var i = 0, length = zValues.length; i < length; i++) {
 		tValues[i] = new Date(d - (length-1-i) * 60 * 1000).toTimeString().slice(0, 5);
 	}
-	const newLabel = new Date(Date.now()).toString();
-	myChart.options.scales.x.title.text = newLabel;
 	myChart.update();
 }
 	
@@ -134,6 +132,8 @@ function processCommand(event) {
     console.log(obj.value);
 	zValues = obj.value.map(x => x * 0.01);
 	bValues = xValues.map((xi, i) => Math.sqrt(xi**2 + yValues[i]**2 + zValues[i]**2));
+	const newLabel = new Date(Date.now()).toString();
+	myChart.options.scales.x.title.text = newLabel;
 	updatechart();
   }  
 }
