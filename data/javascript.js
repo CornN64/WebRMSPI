@@ -147,7 +147,7 @@ if (0) {
 	}
 	const result = yValues.map(x => x * 0.1);
 	const mean = result.reduce((a, b) => a + b, 0) / result.length;
-	myChart.data.datasets[0].data = yValues;	
+	myChart.data.datasets[0].data = yValues.map(x => 20*Math.sin(5*2*3.1415*x/300));	
 	myChart.data.datasets[1].data = result;
 	myChart.data.datasets[2].data = result.map(x => x - mean);
 	myChart.data.datasets[3].data = myChart.data.datasets[0].data.map((xi, i) => Math.sqrt(xi**2 + myChart.data.datasets[1].data[i]**2 + myChart.data.datasets[2].data[i]**2));	

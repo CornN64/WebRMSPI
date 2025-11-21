@@ -1,6 +1,6 @@
 // SSID and password of Wifi connection:
-const char* ssid = "myssid";
-const char* password = "mypw";
+const char* ssid = "MYSSID";
+const char* password = "MYPW";
 
 // Configure IP addresses of the local access point
 const IPAddress local_IP(192,168,55,33);
@@ -8,7 +8,7 @@ const IPAddress gateway(192,168,55,1);
 const IPAddress subnet(255,255,255,0);
 
 #define USEAP 0	//Use (0)DHCP or (1)Access Point
-#define OTAenable //uncomment if you want OTA updates enabled
+//#define OTAenable //uncomment if you want OTA updates enabled (not sure how stable this is?!)
  
 //Pin definitions using the VSPI bus (also connect GND & VCC(3.3V) to RM3100)
 #define SPISPD 1000000  //SPI clock speed
