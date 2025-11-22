@@ -126,7 +126,7 @@ float IRAM_ATTR QQSort(int32_t *arr, int32_t n) {
     }
     float accu = 0.f;
     for(int i=0; i < avgscount; i++) {
-      accu += (float) arr[i];
+      accu += (float) arr[avgs[i]];
     }
     return (RMgain * accu / (float)avgscount);    
 }
@@ -325,10 +325,10 @@ void IRAM_ATTR loop() {
 
   //wait until data is ready
   if(useDRDYPin){ 
-    while(digitalRead(DRDY_GPIO) == LOW); //check RDRY pin
+    while(digitalRead(DRDY_GPIO) == LOW) delay(1); //check RDRY pin
   }
   else{
-    while((readReg(RM_STAT) & 0x80) == 0); //read internal status register
+    while((readReg(RM_STAT) & 0x80) == 0) delay(1); //read internal status register
   }
 
   // Grab sensor data and format results, this will cause DRDY to go low
