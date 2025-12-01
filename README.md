@@ -28,8 +28,8 @@ I used the Arduino 1.8.19 to make SPIFFS upload tool to work and upload the file
 The following libraries needs to be installed to the "Arduino\libraries" folder
 https://github.com/me-no-dev/ESPAsyncWebServer 3.1.0
 https://github.com/me-no-dev/AsyncTCP 1.1.4
-"WebSockets by Markus Sattler" 2.2.0
-ArduinoJson benoit 6.21.5
+"WebSockets by Markus Sattler" 2.3.4
+ArduinoJson benoit 7.4.2
 Required to make SPIFFS.h work:
 https://github.com/me-no-dev/arduino-esp32fs-plugin/releases/
 https://randomnerdtutorials.com/install-esp32-filesystem-uploader-arduino-ide/

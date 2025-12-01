@@ -18,10 +18,10 @@ const IPAddress subnet(255,255,255,0);
 #define MISO_GPIO 19
 #define MOSI_GPIO 23
 
-//Options (setup to send data every 60 seconds)
-#define AVG 60          //Average N samples and send data to the client every 60s (lower interval -> noiser data)
-#define ARRAY_LENGTH 1024 //How much data to store (eats stack)
-#define SR 36           //sample rate (depends on RM3100 config)
+//Options (setup to send data every AVG seconds)
+#define AVG 60          //Average N samples and send data to the client every 60s (faster interval -> noiser data)
+#define SR 36           //sample rate (depends on RM3100 config, trim this to get close to 1s)
+#define ARRAY_LENGTH 1440 //How much data to store (eats stack)
 #define CYCLECOUNT 800  //default = 200
 #define singleMode 0    //0 = use continuous measurement mode; 1 = use single measurement mode
 #define useDRDYPin 1    //0 = not using DRDYPin ; 1 = using DRDYPin to wait for data

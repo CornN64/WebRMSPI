@@ -1,15 +1,15 @@
 // WP (c) 2025
-// V1.8.19 or less use Tools -> ESP32 sketch Data Upload.
+// V1.8.19 or less to use Tools -> ESP32 sketch Data Upload.
 // V2.0 or higher use [Ctrl] + [Shift] + [P], then "Upload SPIFFS to Pico/ESP8266/ESP32".
 // ---------------------------------------------------------------------------------------
-// Plots RM3100 data an webserver chart with ESP32 
+// Plots RM3100 data on webserver using chart.js with an ESP32 
 // Arduino 1.8.19 to make SPIFFS upload tool to work and upload the data folder files for the webserver
 // ESP lib 1.0.4 from expressif
 // The following to libraries needs installed to the "Arduino\libraries" folder (Required for ESPAsyncWebServer)
 // https://github.com/me-no-dev/ESPAsyncWebServer 3.1.0
 // https://github.com/me-no-dev/AsyncTCP 1.1.4
-// "WebSockets by Markus Sattler" 2.2.0
-// ArduinoJson benoit 6.21.5
+// "WebSockets by Markus Sattler" 2.3.4
+// ArduinoJson benoit 7.4.2
 // Required to make SPIFFS.h work:
 // https://github.com/me-no-dev/arduino-esp32fs-plugin/releases/
 // https://randomnerdtutorials.com/install-esp32-filesystem-uploader-arduino-ide/
@@ -22,6 +22,7 @@
 #include "esp_system.h"
 #include "esp_event.h"
 #include "esp_event_loop.h"
+#include "esp_wifi.h"
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
 #include <WebSocketsServer.h>
@@ -34,7 +35,7 @@
 #include <ArduinoOTA.h>
 #endif
 
-//Registers
+// RM3100 registers
 #define RM_POLL       0x00
 #define RM_CMM        0x01
 #define RM_CCXMSB     0x04
@@ -58,7 +59,7 @@
 #define RM_REVID      0x36 //ID
 #define RMgain 1.f/((float)AVG * (0.3671f * (float)CYCLECOUNT + 1.5f)) //calculate the gain from cycle count
 
-// global variables
+// Global variables
 volatile bool NEWDATA = false;
 int plotdata = 2;
 int X_vals[ARRAY_LENGTH];
@@ -84,13 +85,7 @@ float StDev(int32_t *data, int32_t n) {
 }
 
 //Median-Mean filter
-float IRAM_ATTR QQSort(int32_t *arr, int32_t n) {
-#if SR%2
-    const int32_t avgs[] = {SR/2-2, SR/2-1, SR/2+0, SR/2+1, SR/2+2};
-#else
-    const int32_t avgs[] = {SR/2-2, SR/2-1, SR/2+0, SR/2+1};
-#endif
-    const int avgscount = ((sizeof avgs) / (sizeof *avgs));
+float QQSort(int32_t *arr, int32_t n) {
     int32_t stack[64];  // manual stack for recursion-free quicksort
     int32_t top = -1;
     stack[++top] = 0;
@@ -108,10 +103,8 @@ float IRAM_ATTR QQSort(int32_t *arr, int32_t n) {
             while (arr[j] > pivot) j--;
             if (i <= j) {
                 int32_t temp = arr[i];
-                arr[i] = arr[j];
-                arr[j] = temp;
-                i++;
-                j--;
+                arr[i++] = arr[j];
+                arr[j--] = temp;
             }
         }
 
@@ -124,11 +117,14 @@ float IRAM_ATTR QQSort(int32_t *arr, int32_t n) {
             stack[++top] = high;
         }
     }
+    
+    int32_t odd = n&1;
     float accu = 0.f;
-    for(int i=0; i < avgscount; i++) {
-      accu += (float) arr[avgs[i]];
+    for(int i=0; i < 8+odd; i++) {
+      accu += (float) arr[n/2-4+i];
     }
-    return (RMgain * accu / (float)avgscount);    
+    
+    return (accu / (float)(8+odd));    
 }
 
 uint8_t IRAM_ATTR readReg(uint8_t addr){
@@ -175,7 +171,7 @@ void webSocketEvent(byte num, WStype_t type, uint8_t * payload, size_t length) {
         const int l_value = doc["value"];
         Serial.println(String(l_type) + String(l_value));
 
-        // if plotdata value is received -> update and write to all web clients
+        // If plotdata value is received -> update and write to all web clients
         if(String(l_type) == "plotdata") {
           plotdata = int(l_value);
           sendJson("plotdata", String(l_value));
@@ -218,6 +214,8 @@ void Task( void * parameter ) {
     Serial.println("SPIFFS could not initialize");
   }
 
+  esp_wifi_set_ps(WIFI_PS_NONE);  //disable WiFi power save, doesn't play nice after some time
+  
   if (USEAP){  //Accesspoint or DHCP
     Serial.print("Setting up Access Point ... ");
     Serial.println(WiFi.softAPConfig(local_IP, gateway, subnet) ? "Ready" : "Failed!");
@@ -260,7 +258,7 @@ void Task( void * parameter ) {
   for (;;) {
     webSocket.loop();                                 // call webSockets
 #ifdef OTAenable
-    ArduinoOTA.handle();  // Handles a code update request
+    ArduinoOTA.handle();  							  // Handles a code update request
 #endif    
     if (NEWDATA) {
       NEWDATA = false;
@@ -277,7 +275,6 @@ void setup() {
   pinMode(DRDY_GPIO, INPUT);  
   pinMode(CS_GPIO, OUTPUT);
   digitalWrite(CS_GPIO, HIGH);
-  //SPI.begin(); // Initiate the SPI library
   SPI.begin(CLK_GPIO, MISO_GPIO, MOSI_GPIO, CS_GPIO); // Initiate the SPI library
   SPI.beginTransaction(SPISettings(SPISPD, MSBFIRST, SPI_MODE0)); 
 
@@ -287,10 +284,10 @@ void setup() {
   else Serial.print("RM3100 detected REVID:0x");
   Serial.println(ID, HEX);
 
-  xTaskCreatePinnedToCore(Task, "core0", 2*16384, NULL, tskIDLE_PRIORITY, NULL, 0); //Start task
-  //xTaskCreate(Task, "anycore", 2*16384, NULL, tskIDLE_PRIORITY, NULL); //Start task
+  xTaskCreatePinnedToCore(Task, "core0", 65536, NULL, tskIDLE_PRIORITY, NULL, 0); //Start task on core 0 
+  //xTaskCreate(Task, "anycore", 65536, NULL, tskIDLE_PRIORITY, NULL); //Start task on any core
 
-  // Set up cycle counts
+  // Set up RM3100 cycle counts
   digitalWrite(CS_GPIO, LOW); 
   SPI.transfer(RM_CCXMSB);
   SPI.transfer(0xFF & (CYCLECOUNT >> 8));
@@ -318,12 +315,12 @@ void IRAM_ATTR loop() {
   static int32_t sidx = SR-1, avgcnt = AVG;
   static bool first = true;
   
-  // poll the RM3100 for a single measurement
+  // Poll the RM3100 for a single measurement
   if (singleMode){
     writeReg(RM_POLL, 0x70); //set up single measurement mode
   }
 
-  //wait until data is ready
+  // Wait until data is ready
   if(useDRDYPin){ 
     while(digitalRead(DRDY_GPIO) == LOW) delay(1); //check RDRY pin
   }
@@ -331,7 +328,7 @@ void IRAM_ATTR loop() {
     while((readReg(RM_STAT) & 0x80) == 0) delay(1); //read internal status register
   }
 
-  // Grab sensor data and format results, this will cause DRDY to go low
+  // Grab RM3100 data (makes DRDY -> low)
   digitalWrite(CS_GPIO, LOW);
   SPI.transfer(RM_MX2);	// 3 x 24bit
   xv[sidx] = ((int32_t)((SPI.transfer(RM_MX1) << 24) | (SPI.transfer(RM_MX0) << 16) | (SPI.transfer(RM_MY2) << 8)) >> 8);
@@ -341,37 +338,37 @@ void IRAM_ATTR loop() {
 
   if (sidx-- <= 0) {
     sidx = SR-1;
-    x = x + QQSort(xv, SR);
-    y = y + QQSort(yv, SR);
-    z = z + QQSort(zv, SR);
+    x += RMgain * QQSort(xv, SR);
+    y += RMgain * QQSort(yv, SR);
+    z += RMgain * QQSort(zv, SR);
     if (--avgcnt <= 0) {
       avgcnt = AVG;
       float Btot = sqrtf(x*x+y*y+z*z);
-      Serial.print( "B:"); Serial.print(Btot,5);  //scale ints to uT
+      Serial.print(  "B:"); Serial.print(Btot,5);  //scale ints to uT
       Serial.print("\tX:"); Serial.print(x,5);
       Serial.print("\tY:"); Serial.print(y,5);
       Serial.print("\tZ:"); Serial.println(z,5);
       if (first) {
-        for(int i = 0; i<ARRAY_LENGTH-1; i++){
+        first = false;
+        for(int i = 0; i<ARRAY_LENGTH; i++){
           //B_vals[i] = roundf(1e5f*Btot);
           X_vals[i] = roundf(1e5f*x);
           Y_vals[i] = roundf(1e5f*y);
           Z_vals[i] = roundf(1e5f*z);
         }
-        first = false;
       }
       else {
-        for(int i = 0; i<ARRAY_LENGTH-1; i++){
-          //B_vals[i] = B_vals[i+1];
-          X_vals[i] = X_vals[i+1];
-          Y_vals[i] = Y_vals[i+1];
-          Z_vals[i] = Z_vals[i+1];
+        for(int i = ARRAY_LENGTH-2; i>=0; i--){
+          //B_vals[i+1] = B_vals[i];
+          X_vals[i+1] = X_vals[i];
+          Y_vals[i+1] = Y_vals[i];
+          Z_vals[i+1] = Z_vals[i];
         }
+      //B_vals[0] = roundf(1e5f*Btot); //scale ints to 10pT
+      X_vals[0] = roundf(1e5f*x);
+      Y_vals[0] = roundf(1e5f*y);
+      Z_vals[0] = roundf(1e5f*z);
       }
-      //B_vals[ARRAY_LENGTH-1] = roundf(1e5f*Btot); //scale ints to 10pT
-      X_vals[ARRAY_LENGTH-1] = roundf(1e5f*x);
-      Y_vals[ARRAY_LENGTH-1] = roundf(1e5f*y);
-      Z_vals[ARRAY_LENGTH-1] = roundf(1e5f*z);
       x = 0.f; y = 0.f; z = 0.f;
       NEWDATA = true; //let webserver send over the data
     }

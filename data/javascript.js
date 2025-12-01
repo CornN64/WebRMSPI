@@ -54,6 +54,7 @@ const myChart = new Chart("myChart", {
     legend: {display: false},
     scales: {
       x: {
+		reverse: true,  
         title: {
           display: true,
           text: new Date(Date.now()).toString(),
@@ -106,7 +107,7 @@ function updatechart() {
 	}
 	var d = Date.now();
 	for(var i = 0, length = zValues.length; i < length; i++) {
-		tValues[i] = new Date(d - (length-1-i) * 60 * 1000).toTimeString().slice(0, 5);
+		tValues[i] = new Date(d - i * 60 * 1000).toTimeString().slice(0, 5);
 	}
 	myChart.update();
 }
@@ -140,14 +141,15 @@ function processCommand(event) {
 
 window.onload = function(event) {
 if (0) {
+	const numpnt = 300;
 	var d = Date.now();	
-	for(var i = 0; i < 300; i++) {
+	for(var i = 0; i < numpnt; i++) {
 	yValues[i] = i;
-	tValues[i] = new Date(d - (300-1-i) * 60 * 1000).toTimeString().slice(0, 5);
+	tValues[i] = new Date(d - i * 60 * 1000).toTimeString().slice(0, 5);
 	}
 	const result = yValues.map(x => x * 0.1);
 	const mean = result.reduce((a, b) => a + b, 0) / result.length;
-	myChart.data.datasets[0].data = yValues.map(x => 20*Math.sin(5*2*3.1415*x/300));	
+	myChart.data.datasets[0].data = yValues.map(x => 20*Math.sin(5*2*Math.PI*x/numpnt));	
 	myChart.data.datasets[1].data = result;
 	myChart.data.datasets[2].data = result.map(x => x - mean);
 	myChart.data.datasets[3].data = myChart.data.datasets[0].data.map((xi, i) => Math.sqrt(xi**2 + myChart.data.datasets[1].data[i]**2 + myChart.data.datasets[2].data[i]**2));	
